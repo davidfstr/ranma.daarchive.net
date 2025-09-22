@@ -314,7 +314,7 @@
             </div>
 
             <script>
-    const crDefaultUrlPrefix = "http://www.rakhal.com";
+    const crDefaultUrlPrefixB64 = "aHR0cDovL3d3dy5yYWtoYWwuY29t";
 
     // -----------------------------------------------------------------
     // URL Box
@@ -332,6 +332,9 @@
         const siteRootPath = await locateSiteRootPath(loc.origin, requestPath);
         const siteRelRequestPath = requestPath.substring(siteRootPath.length - 1);
 
+        const crDefaultUrlPrefix = (crDefaultUrlPrefixB64 !== null)
+            ? tryDecodeBase64Utf8(crDefaultUrlPrefixB64)
+            : null;
         const archiveUrl = getArchiveUrlWithDup(siteRelRequestPath, crDefaultUrlPrefix);
         if (archiveUrl === null) {
             // Unable to resolve archive URL.
@@ -344,6 +347,30 @@
         urlBoxLinkDom.href = archiveUrl;
         urlBoxLinkDom.innerText = archiveUrl;
     });
+
+    function tryDecodeBase64Utf8(b64Str) {
+        try {
+            const bytes = Uint8Array.fromBase64(base64);
+            return new TextDecoder('utf-8').decode(bytes, {fatal: true});
+        } catch (e) {
+            if (e instanceof SyntaxError || e instanceof TypeError) {
+                // Invalid base64 or UTF-8
+                return null;
+            } else {
+                // API unavailable: Uint8Array, TextDecoder
+                try {
+                    return atob(b64Str);
+                } catch (f) {
+                    if (f instanceof InvalidCharacterError) {
+                        // Invalid base64 or string is not ASCII.
+                        return null;
+                    } else {
+                        throw f;
+                    }
+                }
+            }
+        }
+    }
 
     // Locates the path to the directory containing the exported site,
     // which also will directly contain the "404.html" page.
@@ -366,20 +393,20 @@
                 continue;
             }
 
-            const match = content.match(/const crDefaultUrlPrefix = ([^;]+);/);
+            const match = content.match(/const crDefaultUrlPrefixB64 = ([^;]+);/);
             if (!match) {
                 // No Crystal 404.html page found here
                 continue;
             }
 
-            let candidateUrlPrefix;
+            let candidateUrlPrefixB64;
             try {
-                candidateUrlPrefix = JSON.parse(match[1]);
+                candidateUrlPrefixB64 = JSON.parse(match[1]);
             } catch (parseError) {
-                // Looks like a Crystal 404.html page, but has a bogus crDefaultUrlPrefix.
+                // Looks like a Crystal 404.html page, but has a bogus crDefaultUrlPrefixB64.
                 continue;
             }
-            if (candidateUrlPrefix !== crDefaultUrlPrefix) {
+            if (candidateUrlPrefixB64 !== crDefaultUrlPrefixB64) {
                 // Is a Crystal 404.html page but does not match this 404 page.
                 continue
             }
